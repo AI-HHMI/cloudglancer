@@ -16,6 +16,21 @@ Simple interactive visualization of 3D point clouds using Plotly.
 pip install cloudglancer
 ```
 
+## Quick Start
+
+```python
+import numpy as np
+import cloudglancer
+
+# Generate random 3D points
+points = np.random.randn(500, 3)
+
+# Create and display the plot
+fig = cloudglancer.plot(points, title="My Point Cloud", size=2.0)
+fig.show()
+```
+More examples are in the `examples` folder.
+
 ### Development Installation
 
 Clone the repository and install in editable mode:
@@ -23,8 +38,8 @@ Clone the repository and install in editable mode:
 ```bash
 git clone https://github.com/yourusername/cloudglancer.git
 cd cloudglancer
-python -m venv cloudglancer
-source cloudglancer/bin/activate
+python -m venv venv
+source venv/bin/activate
 pip install -e .
 ```
 
@@ -40,23 +55,6 @@ pip install -e ".[dev]"
 - plotly >= 5.0.0
 - pandas >= 2.0.0
 - numpy >= 1.24.0
-
-## Quick Start
-
-### Basic 3D Scatter Plot
-
-```python
-import numpy as np
-import cloudglancer
-
-# Generate random 3D points
-points = np.random.randn(500, 3)
-
-# Create and display the plot
-fig = cloudglancer.plot(points, title="My Point Cloud", size=2.0)
-fig.show()
-```
-More examples are in the `examples` folder.
 
 ## API Reference
 
