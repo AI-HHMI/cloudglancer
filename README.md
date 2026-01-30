@@ -23,13 +23,13 @@ pip install cloudglancer
 
 ```python
 import numpy as np
-import cloudglancer
+import cloudglancer as cg
 
 # Generate random 3D points
 points = np.random.randn(500, 3)
 
 # Create and display the plot
-fig = cloudglancer.plot(points, title="My Point Cloud", size=2.0)
+fig = cg.plot(points, title="My Point Cloud", size=2.0)
 fig.show()
 ```
 More examples are in the `examples` folder.
