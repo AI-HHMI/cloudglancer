@@ -136,6 +136,11 @@ python -m build
 
 This will create both wheel and source distributions in the `dist/` directory.
 
+### Deploy to PyPi
+```bash
+twine upload --verbose dist/*
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
