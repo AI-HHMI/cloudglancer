@@ -1,3 +1,6 @@
+[![PyPI version](https://img.shields.io/pypi/v/cloudglancer.svg)](https://pypi.org/project/cloudglancer/)
+
+
 # cloudglancer
 
 Simple interactive visualization of 3D point clouds using Plotly.
