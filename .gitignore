@@ -82,3 +82,7 @@ dmypy.json
 
 # macOS
 .DS_Store
+
+cloudglancer/*
+!cloudglancer/scatter.py
+!cloudglancer/__init__.py

@@ -12,8 +12,6 @@ Simple interactive visualization of 3D point clouds using Plotly.
 
 ## Installation
 
-### From PyPI (once published)
-
 ```bash
 pip install cloudglancer
 ```
@@ -58,53 +56,7 @@ points = np.random.randn(500, 3)
 fig = cloudglancer.plot(points, title="My Point Cloud", size=2.0)
 fig.show()
 ```
-
-### Plot with Categorical Labels
-
-```python
-import numpy as np
-import cloudglancer
-
-# Generate three clusters
-cluster1 = np.random.randn(150, 3)
-cluster2 = np.random.randn(150, 3) + np.array([5, 0, 0])
-cluster3 = np.random.randn(150, 3) + np.array([0, 5, 5])
-
-points = np.vstack([cluster1, cluster2, cluster3])
-labels = np.array([0] * 150 + [1] * 150 + [2] * 150)
-
-# Define label mapping and colors
-label_map = {0: "Cluster A", 1: "Cluster B", 2: "Cluster C"}
-color_map = ["red", "blue", "green"]
-
-fig = cloudglancer.plot(
-    points,
-    labels=labels,
-    label_map=label_map,
-    color_map=color_map,
-    title="Three Clusters"
-)
-fig.show()
-```
-
-### Combine Multiple Plots
-
-```python
-import numpy as np
-import cloudglancer
-
-# Create multiple point clouds
-points1 = np.random.randn(200, 3)
-points2 = np.random.randn(200, 3) * 2
-
-# Create individual plots
-fig1 = cloudglancer.plot(points1, title="Dataset 1")
-fig2 = cloudglancer.plot(points2, title="Dataset 2")
-
-# Combine into a single figure
-combined = cloudglancer.combine_plots([fig1, fig2], rows=1, cols=2)
-combined.show()
-```
+More examples are in the `examples` folder.
 
 ## API Reference
 
