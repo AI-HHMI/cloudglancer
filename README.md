@@ -29,8 +29,7 @@ import cloudglancer as cg
 points = np.random.randn(500, 3)
 
 # Create and display the plot
-fig = cg.plot(points, title="My Point Cloud", size=2.0)
-fig.show()
+cg.plot(points, title="My Point Cloud", size=2.0).show()
 ```
 More examples are in the `examples` folder.
 
