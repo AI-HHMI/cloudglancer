@@ -12,6 +12,7 @@ def plot(
     labels: Optional[np.ndarray] = None,
     label_map: Optional[Dict] = None,
     color_map: Optional[Union[List[str], float]] = None,
+    batch_colors: Optional[List[str]] = None,
     size: float = 1.5,
     title: Optional[str] = None
 ) -> Figure:
@@ -19,15 +20,19 @@ def plot(
     Render an interactive 3D scatter plot using Plotly.
 
     Args:
-        points (np.ndarray): Array of shape (n_points, 3) containing 3D coordinates.
+        points (np.ndarray): Array of shape (n_points, 3) or (batch, n_points, 3)
+            containing 3D coordinates. When a 3D array is provided, each batch element
+            is rendered as a separate point cloud with a distinct color.
         labels (np.ndarray, optional): Array of labels for color grouping. When provided
             with label_map, enables discrete color mapping. Without label_map, creates
-            a continuous color scale.
+            a continuous color scale. Not supported for batched input.
         label_map (dict, optional): Maps label values to display names. When provided,
             enables discrete color mapping.
         color_map (list or float, optional): When label_map is provided, this should be
             a list of color strings for discrete coloring. Without label_map, this can be
             a float specifying the continuous color scale midpoint.
+        batch_colors (list, optional): List of color strings, one per batch element.
+            Only used when points is 3D. Defaults to Plotly's qualitative palette.
         size (float, optional): Size of the scatter plot markers. Default is 1.5.
         title (str, optional): Title of the plot.
 
@@ -35,7 +40,7 @@ def plot(
         plotly.graph_objects.Figure: Interactive 3D scatter plot.
 
     Raises:
-        ValueError: If points array is not of shape (n_points, 3).
+        ValueError: If points array shape is invalid or incompatible options are used.
 
     Examples:
         Basic scatter plot:
@@ -50,24 +55,47 @@ def plot(
         >>> color_map = ["red", "blue", "green"]
         >>> fig = plot(points, labels=labels, label_map=label_map, color_map=color_map)
         >>> fig.show()
+
+        Batched point clouds:
+        >>> points = np.random.randn(3, 100, 3)
+        >>> fig = plot(points, batch_colors=["red", "green", "blue"])
+        >>> fig.show()
     """
-    if points.shape[1] != 3:
-        raise ValueError("points must be of shape (n_points, 3)")
+    if points.ndim == 3:
+        B, N, D = points.shape
+        if D != 3:
+            raise ValueError("points must be of shape (B, N, 3)")
+        if labels is not None:
+            raise ValueError("labels are not supported for batched point clouds")
 
-    # Create a DataFrame for easier plotting
-    df = pd.DataFrame(points, columns=["x", "y", "z"])
+        flat_points = points.reshape(-1, 3)
+        batch_labels = np.repeat(np.arange(B), N).astype(str)
 
-    if labels is not None:
-        df["label"] = labels
-        if label_map:
-            df["label"] = df["label"].map(label_map).fillna(df["label"])
-            fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
-                              color_discrete_sequence=color_map)
-        else:
-            fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
-                              color_continuous_midpoint=color_map, range_color=[0, 1])
+        if batch_colors is None:
+            batch_colors = px.colors.qualitative.Plotly[:B]
+
+        df = pd.DataFrame(flat_points, columns=["x", "y", "z"])
+        df["batch"] = batch_labels
+        fig = px.scatter_3d(df, x="x", y="y", z="z", color="batch",
+                            color_discrete_sequence=batch_colors)
     else:
-        fig = px.scatter_3d(df, x="x", y="y", z="z")
+        if points.shape[1] != 3:
+            raise ValueError("points must be of shape (n_points, 3)")
+
+        # Create a DataFrame for easier plotting
+        df = pd.DataFrame(points, columns=["x", "y", "z"])
+
+        if labels is not None:
+            df["label"] = labels
+            if label_map:
+                df["label"] = df["label"].map(label_map).fillna(df["label"])
+                fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
+                                  color_discrete_sequence=color_map)
+            else:
+                fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
+                                  color_continuous_midpoint=color_map, range_color=[0, 1])
+        else:
+            fig = px.scatter_3d(df, x="x", y="y", z="z")
 
     fig.update_traces(marker=dict(size=size))
 
