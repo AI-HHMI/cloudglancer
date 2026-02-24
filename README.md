@@ -58,3 +58,25 @@ pip install -e ".[dev]"
 - plotly >= 5.0.0
 - pandas >= 2.0.0
 - numpy >= 1.24.0
+
+### Building the Package
+
+```bash
+pip install build
+python -m build
+```
+
+This will create both wheel and source distributions in the `dist/` directory.
+
+### Deploy to PyPi
+```bash
+twine upload --verbose dist/*
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
