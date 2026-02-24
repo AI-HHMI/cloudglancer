@@ -14,7 +14,8 @@ def plot(
     color_map: Optional[Union[List[str], float]] = None,
     batch_colors: Optional[List[str]] = None,
     size: float = 1.5,
-    title: Optional[str] = None
+    title: Optional[str] = None,
+    aspectmode: Optional[str] = 'data'
 ) -> Figure:
     """
     Render an interactive 3D scatter plot using Plotly.
@@ -35,6 +36,7 @@ def plot(
             Only used when points is 3D. Defaults to Plotly's qualitative palette.
         size (float, optional): Size of the scatter plot markers. Default is 1.5.
         title (str, optional): Title of the plot.
+        aspectmode (str, optional): Aspect ratio mode for the 3D scene. Default is 'data' (Check plotly docs for available modes).
 
     Returns:
         plotly.graph_objects.Figure: Interactive 3D scatter plot.
@@ -99,7 +101,12 @@ def plot(
 
     fig.update_traces(marker=dict(size=size))
 
-    # Fix: Apply title if provided
+    fig.update_layout(
+        scene=dict(
+            aspectmode=aspectmode
+        )
+    )
+
     if title:
         fig.update_layout(title=title)
 
