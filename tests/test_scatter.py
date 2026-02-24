@@ -89,3 +89,34 @@ def test_plot_size_parameter():
     size = 3.0
     fig = plot(points, size=size)
     assert fig.data[0].marker.size == size
+
+
+def test_plot_batched_basic():
+    """Test batched plot with default colors."""
+    points = np.random.randn(3, 100, 3)
+    fig = plot(points)
+    assert fig is not None
+    assert len(fig.data) == 3  # one trace per batch element
+
+
+def test_plot_batched_custom_colors():
+    """Test batched plot with explicit batch_colors."""
+    points = np.random.randn(2, 50, 3)
+    fig = plot(points, batch_colors=["red", "blue"])
+    assert fig is not None
+    assert len(fig.data) == 2
+
+
+def test_plot_batched_invalid_shape():
+    """Test that ValueError is raised for (B, N, 2) input."""
+    points = np.random.randn(3, 100, 2)
+    with pytest.raises(ValueError, match="points must be of shape"):
+        plot(points)
+
+
+def test_plot_batched_with_labels_raises():
+    """Test that combining batch input with labels raises ValueError."""
+    points = np.random.randn(3, 100, 3)
+    labels = np.zeros(300)
+    with pytest.raises(ValueError, match="labels are not supported"):
+        plot(points, labels=labels)
