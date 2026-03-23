@@ -113,7 +113,7 @@ def plot(
     return fig
 
 
-def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2) -> Figure:
+def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2, aspectmode: Optional[str] = 'data') -> Figure:
     """
     Combine multiple 3D plots into a single figure with subplots.
 
@@ -121,6 +121,7 @@ def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2) -> Figure:
         figs (list): List of Plotly figures to combine.
         rows (int, optional): Number of rows in the subplot grid. Default is 1.
         cols (int, optional): Number of columns in the subplot grid. Default is 2.
+        aspectmode (str, optional): Aspect ratio mode for the 3D scene. Default is 'data' (Check plotly docs for available modes).
 
     Returns:
         plotly.graph_objects.Figure: Combined figure with all plots arranged in a grid.
@@ -156,6 +157,12 @@ def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2) -> Figure:
     for i, fig in enumerate(figs):
         for trace in fig.data:
             combined_fig.add_trace(trace, row=(i // cols) + 1, col=(i % cols) + 1)
+
+    fig.update_layout(
+        scene=dict(
+            aspectmode=aspectmode
+        )
+    )
 
     combined_fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0)
