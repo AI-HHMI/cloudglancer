@@ -158,13 +158,12 @@ def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2, aspectmode: 
         for trace in fig.data:
             combined_fig.add_trace(trace, row=(i // cols) + 1, col=(i % cols) + 1)
 
-    fig.update_layout(
-        scene=dict(
-            aspectmode=aspectmode
-        )
-    )
+    scene_updates = {}
+    for i in range(len(figs)):
+        key = "scene" if i == 0 else f"scene{i + 1}"
+        scene_updates[key] = dict(aspectmode=aspectmode)
 
-    combined_fig.update_layout(
+    combined_fig.update_layout(**scene_updates,
         margin=dict(l=0, r=0, t=0, b=0)
     )
 
