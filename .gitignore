@@ -85,3 +85,4 @@ dmypy.json
 cloudglancer/*
 !cloudglancer/scatter.py
 !cloudglancer/__init__.py
+!cloudglancer/animate.py

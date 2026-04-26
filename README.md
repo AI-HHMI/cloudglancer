@@ -13,6 +13,7 @@ Simple interactive visualization of 3D point clouds using Plotly.
 - Easy-to-use API with sensible defaults
 - Type hints for better IDE support
 - Plot batched point clouds (B, N, 3)
+- Export a rotating turntable GIF of any figure
 
 ## Installation
 
@@ -32,6 +33,14 @@ points = np.random.randn(500, 3)
 # Create and display the plot
 cg.plot(points, title="My Point Cloud", size=2.0).show()
 ```
+
+Export a rotating GIF of the same figure:
+
+```python
+fig = cg.plot(points, size=2.0)
+cg.animate(fig, "rotation.gif", axis="z", n_frames=60)
+```
+
 More examples are in the `examples` folder.
 
 ### Development Installation
