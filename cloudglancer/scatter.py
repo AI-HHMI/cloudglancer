@@ -11,7 +11,7 @@ def plot(
     points: np.ndarray,
     labels: Optional[np.ndarray] = None,
     label_map: Optional[Dict] = None,
-    color_map: Optional[Union[List[str], float]] = None,
+    color_map: Optional[Union[List[str], Dict[str, str], float]] = None,
     batch_colors: Optional[List[str]] = None,
     size: float = 1.5,
     title: Optional[str] = None,
@@ -29,8 +29,9 @@ def plot(
             a continuous color scale. Not supported for batched input.
         label_map (dict, optional): Maps label values to display names. When provided,
             enables discrete color mapping.
-        color_map (list or float, optional): When label_map is provided, this should be
-            a list of color strings for discrete coloring. Without label_map, this can be
+        color_map (list, dict, or float, optional): When label_map is provided, a
+            {display_name: color} dict (preferred) or a list of color strings aligned
+            with label_map values for discrete coloring. Without label_map, this can be
             a float specifying the continuous color scale midpoint.
         batch_colors (list, optional): List of color strings, one per batch element.
             Only used when points is 3D. Defaults to Plotly's qualitative palette.
@@ -91,8 +92,18 @@ def plot(
             df["label"] = labels
             if label_map:
                 df["label"] = df["label"].map(label_map).fillna(df["label"])
-                fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
-                                  color_discrete_sequence=color_map)
+                category_orders = {"label": list(label_map.values())}
+                if isinstance(color_map, dict):
+                    discrete_map = color_map
+                elif isinstance(color_map, list):
+                    discrete_map = dict(zip(label_map.values(), color_map))
+                else:
+                    discrete_map = None
+                fig = px.scatter_3d(
+                    df, x="x", y="y", z="z", color="label",
+                    color_discrete_map=discrete_map,
+                    category_orders=category_orders,
+                )
             else:
                 fig = px.scatter_3d(df, x="x", y="y", z="z", color="label",
                                   color_continuous_midpoint=color_map, range_color=[0, 1])
