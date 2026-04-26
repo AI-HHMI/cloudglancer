@@ -34,6 +34,40 @@ def test_plot_with_label_map():
     assert len(fig.data) > 0
 
 
+def test_plot_label_map_color_binding_is_order_independent():
+    """Colors must bind to labels via label_map, not the point order
+    (regression for issue #1)."""
+    pts = np.random.randn(200, 3)
+    labels_a = np.zeros(200, dtype=int); labels_a[:100] = 1
+    labels_b = np.zeros(200, dtype=int); labels_b[100:] = 1
+    label_map = {0: "unknown", 1: "known"}
+    color_map = ["red", "steelblue"]
+
+    fig_a = plot(pts, labels=labels_a, label_map=label_map, color_map=color_map)
+    fig_b = plot(pts, labels=labels_b, label_map=label_map, color_map=color_map)
+
+    def color_for(fig, name):
+        trace = next(t for t in fig.data if t.name == name)
+        return trace.marker.color
+
+    assert color_for(fig_a, "unknown") == color_for(fig_b, "unknown") == "red"
+    assert color_for(fig_a, "known") == color_for(fig_b, "known") == "steelblue"
+
+
+def test_plot_label_map_accepts_color_dict():
+    """color_map may be a {display_name: color} dict."""
+    pts = np.random.randn(60, 3)
+    labels = np.array([0] * 30 + [1] * 30)
+    fig = plot(
+        pts, labels=labels,
+        label_map={0: "unknown", 1: "known"},
+        color_map={"unknown": "red", "known": "steelblue"},
+    )
+    by_name = {t.name: t.marker.color for t in fig.data}
+    assert by_name["unknown"] == "red"
+    assert by_name["known"] == "steelblue"
+
+
 def test_plot_invalid_shape():
     """Test that ValueError is raised for incorrect point shape."""
     points = np.random.randn(100, 2)  # Wrong shape
