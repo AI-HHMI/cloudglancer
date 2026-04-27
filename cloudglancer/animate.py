@@ -1,8 +1,10 @@
 """Render a rotating GIF animation of a 3D Plotly figure."""
 
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
 from typing import Tuple
-import copy
 
 import numpy as np
 from plotly.graph_objects import Figure
@@ -42,6 +44,21 @@ def _eye_to_vec(eye) -> np.ndarray:
     if eye is None or eye.x is None:
         return np.array([1.25, 1.25, 1.25])
     return np.array([eye.x, eye.y, eye.z])
+
+
+_WORKER_FIG = None
+
+
+def _init_worker(fig_dict: dict) -> None:
+    global _WORKER_FIG
+    from plotly.graph_objects import Figure as _Figure
+    _WORKER_FIG = _Figure(fig_dict)
+
+
+def _render_frame(args: Tuple[dict, int, int]) -> bytes:
+    scene_updates, width, height = args
+    _WORKER_FIG.update_layout(**scene_updates)
+    return _WORKER_FIG.to_image(format="png", width=width, height=height)
 
 
 def animate(
@@ -108,39 +125,52 @@ def animate(
     if not scene_keys:
         raise ValueError("figure has no 3D scene to animate")
 
-    original_cameras = {k: copy.deepcopy(fig.layout[k].camera) for k in scene_keys}
     initial_eyes = {k: _eye_to_vec(fig.layout[k].camera.eye) for k in scene_keys}
 
-    frames = []
-    try:
-        for i in tqdm(range(n_frames), desc="Rendering frames",
-                      unit="frame", disable=not progress):
-            theta = 2.0 * np.pi * i / n_frames
-            R = _rotation_matrix(axis_vec, theta)
-
-            scene_updates = {}
-            for k in scene_keys:
-                eye = R @ initial_eyes[k]
-                scene_updates[k] = dict(
-                    camera=dict(
-                        eye=dict(x=float(eye[0]), y=float(eye[1]), z=float(eye[2])),
-                        up=up_vec,
-                    )
+    tasks = []
+    for i in range(n_frames):
+        theta = 2.0 * np.pi * i / n_frames
+        R = _rotation_matrix(axis_vec, theta)
+        scene_updates = {}
+        for k in scene_keys:
+            eye = R @ initial_eyes[k]
+            scene_updates[k] = dict(
+                camera=dict(
+                    eye=dict(x=float(eye[0]), y=float(eye[1]), z=float(eye[2])),
+                    up=up_vec,
                 )
-            fig.update_layout(**scene_updates)
+            )
+        tasks.append((scene_updates, width, height))
 
-            try:
-                png = fig.to_image(format="png", width=width, height=height)
-            except ValueError as e:
-                raise ImportError(
-                    "animate() requires kaleido for PNG export. "
-                    "Install it with `pip install 'kaleido<1.0'`."
-                ) from e
+    fig_dict = fig.to_dict()
+    n_workers = min(4, os.cpu_count() or 2, n_frames)
 
-            frames.append(Image.open(BytesIO(png)).convert("P", palette=Image.ADAPTIVE))
-    finally:
-        for k, cam in original_cameras.items():
-            fig.update_layout(**{k: dict(camera=cam)})
+    pngs: list = [None] * n_frames
+    try:
+        with ProcessPoolExecutor(
+            max_workers=n_workers,
+            mp_context=multiprocessing.get_context("spawn"),
+            initializer=_init_worker,
+            initargs=(fig_dict,),
+        ) as executor:
+            iterator = executor.map(_render_frame, tasks, chunksize=1)
+            for i, png in enumerate(
+                tqdm(iterator, total=n_frames, desc="Rendering frames",
+                     unit="frame", disable=not progress)
+            ):
+                pngs[i] = png
+    except ValueError as e:
+        raise ImportError(
+            "animate() requires kaleido for PNG export. "
+            "Install it with `pip install 'kaleido<1.0'`."
+        ) from e
+
+    ref_palette = Image.open(BytesIO(pngs[0])).convert("P", palette=Image.ADAPTIVE)
+
+    frames = [ref_palette]
+    for png in pngs[1:]:
+        rgb = Image.open(BytesIO(png)).convert("RGB")
+        frames.append(rgb.quantize(palette=ref_palette, dither=Image.NONE))
 
     frames[0].save(
         output_path,
@@ -148,7 +178,6 @@ def animate(
         append_images=frames[1:],
         duration=duration,
         loop=loop,
-        optimize=True,
         disposal=2,
     )
 
