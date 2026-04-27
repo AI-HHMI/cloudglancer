@@ -10,8 +10,6 @@ Simple interactive visualization of 3D point clouds using Plotly.
 - Interactive 3D scatter plots with pan, zoom, and rotation
 - Support for categorical and continuous color mapping
 - Combine multiple plots into subplot grids
-- Easy-to-use API with sensible defaults
-- Type hints for better IDE support
 - Plot batched point clouds (B, N, 3)
 - Export a rotating turntable GIF of any figure
 
