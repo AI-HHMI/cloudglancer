@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from cloudglancer import plot, combine_plots
+from cloudglancer import plot, combine_plots, plot_grid, beautify
 
 
 def test_plot_basic():
@@ -154,3 +154,105 @@ def test_plot_batched_with_labels_raises():
     labels = np.zeros(300)
     with pytest.raises(ValueError, match="labels are not supported"):
         plot(points, labels=labels)
+
+
+def _scene_count(fig):
+    return sum(
+        1 for k in fig.layout
+        if k == "scene" or (k.startswith("scene") and k[5:].isdigit())
+    )
+
+
+def test_plot_grid_auto_shape():
+    """Auto grid for B=5 → 3 cols x 2 rows = 6 cells."""
+    pts = np.random.randn(5, 30, 3)
+    fig = plot_grid(pts)
+    assert _scene_count(fig) == 6
+    assert fig.layout.showlegend is False
+
+
+def test_plot_grid_explicit_shape():
+    pts = np.random.randn(4, 30, 3)
+    fig = plot_grid(pts, rows=2, cols=2)
+    assert _scene_count(fig) == 4
+    assert len(fig.data) == 4
+
+
+def test_plot_grid_single_color_string():
+    pts = np.random.randn(3, 20, 3)
+    fig = plot_grid(pts, colors="#1f77b4")
+    cloud_traces = [t for t in fig.data if len(t.x) > 1]
+    assert len(cloud_traces) == 3
+    for t in cloud_traces:
+        assert t.marker.color == "#1f77b4"
+
+
+def test_plot_grid_color_list():
+    pts = np.random.randn(3, 20, 3)
+    fig = plot_grid(pts, colors=["red", "green", "blue"])
+    cloud_traces = [t for t in fig.data if len(t.x) > 1]
+    colors = [t.marker.color for t in cloud_traces]
+    assert sorted(colors) == sorted(["red", "green", "blue"])
+
+
+def test_plot_grid_invalid_shape():
+    with pytest.raises(ValueError, match="points must be of shape"):
+        plot_grid(np.random.randn(3, 20, 2))
+
+
+def test_plot_grid_grid_too_small():
+    pts = np.random.randn(5, 20, 3)
+    with pytest.raises(ValueError, match="rows\\*cols"):
+        plot_grid(pts, rows=2, cols=2)
+
+
+def test_plot_grid_color_list_length_mismatch():
+    pts = np.random.randn(3, 20, 3)
+    with pytest.raises(ValueError, match="colors must have length"):
+        plot_grid(pts, colors=["red", "green"])
+
+
+def test_plot_grid_pads_when_grid_larger_than_b():
+    """B=3 in a 2x2 grid → 4 scenes, with the last cell padded."""
+    pts = np.random.randn(3, 20, 3)
+    fig = plot_grid(pts, rows=2, cols=2)
+    assert _scene_count(fig) == 4
+    assert len(fig.data) == 4
+
+
+def test_beautify_single_scene():
+    pts = np.random.randn(50, 3)
+    fig = beautify(plot(pts))
+    assert fig.layout.paper_bgcolor == "white"
+    assert fig.layout.scene.bgcolor == "white"
+    assert fig.layout.scene.xaxis.showticklabels is False
+    assert fig.layout.scene.yaxis.gridcolor == "lightgray"
+
+
+def test_beautify_applies_to_every_grid_scene():
+    """All scenes (not just `scene`) should get the styling."""
+    pts = np.random.randn(4, 30, 3)
+    fig = beautify(plot_grid(pts, rows=2, cols=2))
+    scene_keys = [
+        k for k in fig.layout
+        if k == "scene" or (k.startswith("scene") and k[5:].isdigit())
+    ]
+    assert len(scene_keys) == 4
+    for k in scene_keys:
+        scene = fig.layout[k]
+        assert scene.bgcolor == "white"
+        assert scene.xaxis.showticklabels is False
+        assert scene.yaxis.showticklabels is False
+        assert scene.zaxis.showticklabels is False
+
+
+def test_beautify_custom_colors():
+    fig = beautify(plot(np.random.randn(20, 3)),
+                   paper_bgcolor="black", scene_bgcolor="black")
+    assert fig.layout.paper_bgcolor == "black"
+    assert fig.layout.scene.bgcolor == "black"
+
+
+def test_beautify_returns_same_figure():
+    fig = plot(np.random.randn(20, 3))
+    assert beautify(fig) is fig

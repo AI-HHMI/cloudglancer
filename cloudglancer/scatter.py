@@ -1,6 +1,7 @@
 """Core scatter plotting functionality for 3D point clouds."""
 
-from typing import Optional, List, Dict, Union
+import math
+from typing import Optional, List, Dict, Tuple, Union
 import plotly.express as px
 import pandas as pd
 import numpy as np
@@ -179,3 +180,164 @@ def combine_plots(figs: List[Figure], rows: int = 1, cols: int = 2, aspectmode: 
     )
 
     return combined_fig
+
+
+_DEFAULT_AXIS_STYLE = dict(
+    backgroundcolor="white",
+    gridcolor="lightgray",
+    showbackground=True,
+    showticklabels=False,
+    title="",
+    zerolinecolor="lightgray",
+)
+
+
+def beautify(
+    fig: Figure,
+    paper_bgcolor: str = "white",
+    scene_bgcolor: str = "white",
+    axis_style: Optional[Dict] = None,
+) -> Figure:
+    """
+    Apply a clean, GIF-friendly style to every 3D scene in a figure.
+
+    Hides axis tick labels and titles, gives axes a light gray grid, and
+    paints both the figure paper and each 3D scene's background. Works on
+    single-scene figures (from :func:`plot`) and multi-scene figures (from
+    :func:`plot_grid` / :func:`combine_plots`), which use layout keys
+    ``scene``, ``scene2``, ``scene3``, .... Mutates and returns ``fig``.
+
+    Args:
+        fig (plotly.graph_objects.Figure): Figure to style in place.
+        paper_bgcolor (str, optional): Color of the area outside the 3D
+            scenes. Default ``"white"``.
+        scene_bgcolor (str, optional): Color of the area inside each 3D
+            scene's box. Default ``"white"``.
+        axis_style (dict, optional): Override the per-axis style applied
+            to ``xaxis``/``yaxis``/``zaxis`` of every scene. When ``None``
+            a clean default (light gray grid, hidden tick labels and
+            titles) is used.
+
+    Returns:
+        plotly.graph_objects.Figure: The same ``fig``, restyled.
+
+    Examples:
+        >>> import numpy as np
+        >>> import cloudglancer as cg
+        >>> pts = np.random.randn(6, 200, 3)
+        >>> fig = cg.beautify(cg.plot_grid(pts, colors="#1f77b4"))
+        >>> cg.animate(fig, "grid.gif", n_frames=60)
+    """
+    style = dict(_DEFAULT_AXIS_STYLE if axis_style is None else axis_style)
+
+    fig.update_layout(paper_bgcolor=paper_bgcolor)
+
+    for key in fig.layout:
+        if key == "scene" or (key.startswith("scene") and key[len("scene"):].isdigit()):
+            fig.layout[key].update(
+                bgcolor=scene_bgcolor,
+                xaxis=style,
+                yaxis=style,
+                zaxis=style,
+            )
+
+    return fig
+
+
+def _resolve_grid_shape(n: int, rows: Optional[int], cols: Optional[int]) -> Tuple[int, int]:
+    if rows is None and cols is None:
+        cols = int(math.ceil(math.sqrt(n)))
+        rows = int(math.ceil(n / cols))
+    elif rows is None:
+        rows = int(math.ceil(n / cols))
+    elif cols is None:
+        cols = int(math.ceil(n / rows))
+    if rows * cols < n:
+        raise ValueError(f"rows*cols={rows * cols} < B={n}")
+    return rows, cols
+
+
+def plot_grid(
+    points: np.ndarray,
+    rows: Optional[int] = None,
+    cols: Optional[int] = None,
+    colors: Optional[Union[str, List[str]]] = None,
+    size: float = 1.5,
+    aspectmode: Optional[str] = 'data',
+    showlegend: bool = False,
+) -> Figure:
+    """
+    Render a batch of 3D point clouds as a grid of subplots, one cloud per cell.
+
+    Args:
+        points (np.ndarray): Array of shape (B, N, 3). Each batch element is
+            rendered into its own subplot.
+        rows (int, optional): Number of grid rows. If both ``rows`` and ``cols``
+            are ``None``, a near-square grid is chosen automatically. If only
+            one is given, the other is derived from ``B``.
+        cols (int, optional): Number of grid columns. See ``rows``.
+        colors (str or list of str, optional): Color for each subplot. Pass a
+            single color string to use it for every cloud, or a list of length
+            ``B`` to color each cloud individually. Defaults to Plotly's
+            qualitative palette.
+        size (float, optional): Marker size. Default is 1.5.
+        aspectmode (str, optional): Aspect mode for each 3D scene. Default
+            ``'data'``.
+        showlegend (bool, optional): Whether to show the figure legend.
+            Default ``False`` (legends are noisy in grids).
+
+    Returns:
+        plotly.graph_objects.Figure: A combined figure with the grid of
+        subplots, ready for ``.show()`` or for passing to
+        :func:`cloudglancer.animate`.
+
+    Raises:
+        ValueError: If ``points`` is not (B, N, 3), if ``colors`` is a list
+            whose length does not match ``B``, or if ``rows*cols < B``.
+
+    Examples:
+        >>> import numpy as np
+        >>> import cloudglancer as cg
+        >>> pts = np.random.randn(6, 200, 3)
+        >>> fig = cg.plot_grid(pts, colors="#1f77b4", size=1.5)
+        >>> cg.animate(fig, "grid.gif", n_frames=60)
+    """
+    if points.ndim != 3 or points.shape[-1] != 3:
+        raise ValueError(f"points must be of shape (B, N, 3); got {points.shape}")
+
+    B = points.shape[0]
+    rows, cols = _resolve_grid_shape(B, rows, cols)
+
+    if colors is None:
+        palette = px.colors.qualitative.Plotly
+        cell_colors = [palette[i % len(palette)] for i in range(B)]
+    elif isinstance(colors, str):
+        cell_colors = [colors] * B
+    else:
+        if len(colors) != B:
+            raise ValueError(
+                f"colors must have length B={B}; got {len(colors)}"
+            )
+        cell_colors = list(colors)
+
+    figs = []
+    for i in range(rows * cols):
+        if i < B:
+            sub = plot(
+                points[i:i + 1],
+                batch_colors=[cell_colors[i]],
+                size=size,
+                aspectmode=aspectmode,
+            )
+        else:
+            sub = plot(
+                np.zeros((1, 1, 3), dtype=points.dtype),
+                batch_colors=["rgba(0,0,0,0)"],
+                size=size,
+                aspectmode=aspectmode,
+            )
+        figs.append(sub)
+
+    combined = combine_plots(figs, rows=rows, cols=cols, aspectmode=aspectmode)
+    combined.update_layout(showlegend=showlegend)
+    return combined

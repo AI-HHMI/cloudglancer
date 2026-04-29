@@ -13,6 +13,7 @@ Simple interactive visualization of 3D point clouds using Plotly.
 - Easy-to-use API with sensible defaults
 - Type hints for better IDE support
 - Plot batched point clouds (B, N, 3)
+- Render a (B, N, 3) batch as a grid of subplots (one cloud per cell)
 - Export a rotating turntable GIF of any figure
 
 ## Installation
@@ -39,6 +40,31 @@ Export a rotating GIF of the same figure:
 ```python
 fig = cg.plot(points, size=2.0)
 cg.animate(fig, "rotation.gif", axis="z", n_frames=60)
+```
+
+Render a batch of point clouds as a grid of subplots (one cloud per cell):
+
+```python
+batch = np.random.randn(6, 500, 3)  # (B, N, 3)
+
+# Auto near-square grid, single color for every cloud
+fig = cg.plot_grid(batch, colors="#1f77b4", size=1.5)
+
+# Or explicit grid + per-cell colors
+fig = cg.plot_grid(batch, rows=2, cols=3,
+                   colors=["red", "green", "blue", "orange", "purple", "teal"])
+
+# Combine with animate() for a rotating GIF of the whole grid
+cg.animate(fig, "grid.gif", n_frames=60, width=1600, height=1200)
+```
+
+Apply a clean, GIF-friendly style (white backgrounds, hidden tick labels,
+light gray axis grid) to every 3D scene in a figure — works for both
+single plots and grids:
+
+```python
+fig = cg.beautify(cg.plot_grid(batch, colors="#1f77b4"))
+cg.animate(fig, "grid.gif", n_frames=60)
 ```
 
 More examples are in the `examples` folder.
