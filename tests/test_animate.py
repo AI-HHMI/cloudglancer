@@ -54,6 +54,19 @@ def test_animate_combined_figure(tmp_path):
     assert out.exists() and _is_gif(out)
 
 
+def test_animate_n_workers(tmp_path):
+    fig = plot(np.random.randn(20, 3))
+    out = tmp_path / "w.gif"
+    animate(fig, str(out), n_frames=3, width=120, height=120, n_workers=2, progress=False)
+    assert _is_gif(out)
+
+
+def test_animate_invalid_n_workers(tmp_path):
+    fig = plot(np.random.randn(10, 3))
+    with pytest.raises(ValueError, match="n_workers must be >= 1"):
+        animate(fig, str(tmp_path / "x.gif"), n_frames=2, n_workers=0)
+
+
 @pytest.mark.parametrize("axis", ["x", "y", "z"])
 def test_animate_each_axis(tmp_path, axis):
     fig = plot(np.random.randn(20, 3))

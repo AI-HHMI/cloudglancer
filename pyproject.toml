@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudglancer"
-version = "0.1.7"
+version = "0.1.8"
 description = "Simple interactive visualization of 3D point clouds"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -51,6 +51,13 @@ include = ["cloudglancer*"]
 
 [tool.setuptools.package-data]
 cloudglancer = ["py.typed"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # animate() forks render workers after the pool's manager thread starts; the
+    # workers never touch the inherited locks, so this CPython warning is benign here.
+    "ignore:This process .* is multi-threaded, use of fork:DeprecationWarning",
+]
 
 [tool.black]
 line-length = 100

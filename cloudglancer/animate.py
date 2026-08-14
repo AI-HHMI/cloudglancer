@@ -2,9 +2,10 @@
 
 import multiprocessing
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from plotly.graph_objects import Figure
@@ -40,25 +41,31 @@ def _scene_keys(fig: Figure) -> list:
     return keys
 
 
-def _eye_to_vec(eye) -> np.ndarray:
-    if eye is None or eye.x is None:
+def _eye_to_vec(eye: dict) -> np.ndarray:
+    if not eye or eye.get("x") is None:
         return np.array([1.25, 1.25, 1.25])
-    return np.array([eye.x, eye.y, eye.z])
+    return np.array([eye["x"], eye["y"], eye["z"]], dtype=float)
 
 
-_WORKER_FIG = None
+_WORKER_FIG_DICT = None
 
 
 def _init_worker(fig_dict: dict) -> None:
-    global _WORKER_FIG
-    from plotly.graph_objects import Figure as _Figure
-    _WORKER_FIG = _Figure(fig_dict)
+    global _WORKER_FIG_DICT
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning,
+                            message=r".*[Kk]aleido.*")
+    _WORKER_FIG_DICT = fig_dict
 
 
 def _render_frame(args: Tuple[dict, int, int]) -> bytes:
-    scene_updates, width, height = args
-    _WORKER_FIG.update_layout(**scene_updates)
-    return _WORKER_FIG.to_image(format="png", width=width, height=height)
+    cameras, width, height = args
+    import plotly.io as pio
+    layout = _WORKER_FIG_DICT.setdefault("layout", {})
+    for key, cam in cameras.items():
+        layout.setdefault(key, {})["camera"] = cam
+    return pio.to_image(_WORKER_FIG_DICT, format="png",
+                        width=width, height=height, validate=False)
 
 
 def animate(
@@ -71,6 +78,7 @@ def animate(
     height: int = 600,
     loop: int = 0,
     progress: bool = True,
+    n_workers: Optional[int] = None,
 ) -> str:
     """
     Render a rotating GIF of a 3D Plotly figure.
@@ -90,12 +98,18 @@ def animate(
         height: Frame height in pixels. Defaults to 600.
         loop: Number of times the GIF should loop (0 = infinite). Defaults to 0.
         progress: Show a tqdm progress bar while rendering frames. Defaults to True.
+        n_workers: Number of parallel render processes. Defaults to
+            ``min(16, cpu_count, n_frames)``. Raise it on machines with many
+            cores for large frame counts. On non-Linux platforms worker
+            processes are spawned, so scripts calling ``animate()`` there must
+            be guarded by ``if __name__ == "__main__":``.
 
     Returns:
         The ``output_path`` it wrote to.
 
     Raises:
-        ValueError: If `axis` is not one of ``'x'``, ``'y'``, ``'z'``.
+        ValueError: If `axis` is not one of ``'x'``, ``'y'``, ``'z'``, or
+            `n_workers` is less than 1.
         ImportError: If ``kaleido`` or ``Pillow`` is not installed.
 
     Examples:
@@ -116,6 +130,14 @@ def animate(
             "animate() requires Pillow. Install it with `pip install Pillow`."
         ) from e
 
+    try:
+        import kaleido  # noqa: F401
+    except ImportError as e:
+        raise ImportError(
+            "animate() requires kaleido for PNG export. "
+            "Install it with `pip install 'kaleido<1.0'`."
+        ) from e
+
     axis_vec = _AXIS_VECTORS[axis]
     up_vec = {"x": dict(x=1, y=0, z=0),
               "y": dict(x=0, y=1, z=0),
@@ -125,45 +147,53 @@ def animate(
     if not scene_keys:
         raise ValueError("figure has no 3D scene to animate")
 
-    initial_eyes = {k: _eye_to_vec(fig.layout[k].camera.eye) for k in scene_keys}
+    fig_dict = fig.to_dict()
+    layout_dict = fig_dict.setdefault("layout", {})
+
+    orig_cams = {}
+    initial_eyes = {}
+    for k in scene_keys:
+        cam = dict((layout_dict.get(k) or {}).get("camera") or {})
+        orig_cams[k] = cam
+        initial_eyes[k] = _eye_to_vec(cam.get("eye"))
 
     tasks = []
     for i in range(n_frames):
         theta = 2.0 * np.pi * i / n_frames
         R = _rotation_matrix(axis_vec, theta)
-        scene_updates = {}
+        cameras = {}
         for k in scene_keys:
             eye = R @ initial_eyes[k]
-            scene_updates[k] = dict(
-                camera=dict(
-                    eye=dict(x=float(eye[0]), y=float(eye[1]), z=float(eye[2])),
-                    up=up_vec,
-                )
-            )
-        tasks.append((scene_updates, width, height))
+            cameras[k] = {
+                **orig_cams[k],
+                "eye": dict(x=float(eye[0]), y=float(eye[1]), z=float(eye[2])),
+                "up": up_vec,
+            }
+        tasks.append((cameras, width, height))
 
-    fig_dict = fig.to_dict()
-    n_workers = min(4, os.cpu_count() or 2, n_frames)
+    if n_workers is None:
+        n_workers = min(16, os.cpu_count() or 2)
+    elif n_workers < 1:
+        raise ValueError(f"n_workers must be >= 1 (got {n_workers})")
+    n_workers = min(n_workers, n_frames)
+
+    # fork keeps unguarded user scripts working and skips per-worker re-imports;
+    # spawn elsewhere (fork is unsafe on macOS, unavailable on Windows).
+    start_method = "fork" if sys.platform.startswith("linux") else "spawn"
 
     pngs: list = [None] * n_frames
-    try:
-        with ProcessPoolExecutor(
-            max_workers=n_workers,
-            mp_context=multiprocessing.get_context("spawn"),
-            initializer=_init_worker,
-            initargs=(fig_dict,),
-        ) as executor:
-            iterator = executor.map(_render_frame, tasks, chunksize=1)
-            for i, png in enumerate(
-                tqdm(iterator, total=n_frames, desc="Rendering frames",
-                     unit="frame", disable=not progress)
-            ):
-                pngs[i] = png
-    except ValueError as e:
-        raise ImportError(
-            "animate() requires kaleido for PNG export. "
-            "Install it with `pip install 'kaleido<1.0'`."
-        ) from e
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        mp_context=multiprocessing.get_context(start_method),
+        initializer=_init_worker,
+        initargs=(fig_dict,),
+    ) as executor:
+        iterator = executor.map(_render_frame, tasks, chunksize=1)
+        for i, png in enumerate(
+            tqdm(iterator, total=n_frames, desc="Rendering frames",
+                 unit="frame", disable=not progress)
+        ):
+            pngs[i] = png
 
     ref_palette = Image.open(BytesIO(pngs[0])).convert("P", palette=Image.ADAPTIVE)
 
