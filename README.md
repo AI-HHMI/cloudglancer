@@ -40,6 +40,9 @@ fig = cg.plot(points, size=2.0)
 cg.animate(fig, "rotation.gif", axis="z", n_frames=60)
 ```
 
+Frames are rendered in parallel; pass `n_workers` to control how many render
+processes are used (defaults to `min(16, cpu_count)`).
+
 Render a batch of point clouds as a grid of subplots (one cloud per cell):
 
 ```python
